@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'corsheaders',
 
     'cars',
 ]
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # For serving static files in production
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,13 +79,18 @@ WSGI_APPLICATION = 'project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Use DATABASE_URL if available (for Render), otherwise use SQLite
+# Use DATABASE_URL if available (for hosted Postgres like Railway), otherwise use SQLite
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
     import dj_database_url
+    # Enforce SSL and persistent connections for managed Postgres providers (e.g., Railway)
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL)
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,   # keep DB connections open for performance
+            ssl_require=True    # require SSL (common for managed Postgres)
+        )
     }
 else:
     DATABASES = {
@@ -141,3 +148,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10
 }
+
+# CORS configuration
+# Allow specific production frontend and local dev ports starting with 300x
+CORS_ALLOWED_ORIGINS = [
+    "https://nonamefactorymanagementsystem.vercel.app",
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:300\d+$",
+    r"^http://127\.0\.0\.1:300\d+$",
+]

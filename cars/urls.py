@@ -18,5 +18,5 @@ urlpatterns = [
     # Maintenance
     path('maintenance/', views.create_maintenance_entry, name='create-maintenance'),
     path('maintenance/by-date/', views.update_maintenance_by_date, name='update-maintenance-by-date'),
-    path('maintenance/year/', views.get_maintenance_year, name='maintenance-year'),
+    path('maintenance/month/', views.get_maintenance_month, name='maintenance-month'),
 ]

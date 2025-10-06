@@ -380,14 +380,14 @@ Response
 
 ---
 
-## Get Yearly Maintenance Table
-- **Endpoint:** `GET /api/maintenance/year/?car_id={id}&year=YYYY`
-- **Description:** Returns all maintenance entries for a car in the specified year, plus monthly totals and yearly totals.
-- **Query Parameters:** `car_id` (required), `year` (required, YYYY format)
+## Get Monthly Maintenance Table
+- **Endpoint:** `GET /api/maintenance/month/?car_id={id}&year=YYYY&month=MM`
+- **Description:** Returns all maintenance entries for a car in the specified month, plus monthly totals AND yearly totals. Better performance than yearly queries while providing complete year context.
+- **Query Parameters:** `car_id` (required), `year` (required, YYYY format), `month` (required, 1-12)
 
 **Example Request:**
 ```
-GET /api/maintenance/year/?car_id=2&year=2025
+GET /api/maintenance/month/?car_id=2&year=2025&month=10
 ```
 
 **Response:** `200 OK`
@@ -395,6 +395,7 @@ GET /api/maintenance/year/?car_id=2&year=2025
 {
   "car_id": 2,
   "year": 2025,
+  "month": 10,
   "entries": [
     {
       "id": 1,
@@ -406,43 +407,45 @@ GET /api/maintenance/year/?car_id=2&year=2025
       "oil_change": "300.00",
       "price": "50.25",
       "spare_part_type": "Oil Change + All Filters"
-    }
-  ],
-  "monthly_totals": [
-    {
-      "month": 1,
-      "air_filter": 0,
-      "oil_filter": 0,
-      "gas_filter": 0,
-      "oil_change": 0,
-      "price": 0,
-      "full_total": 0
     },
     {
-      "month": 10,
-      "air_filter": 120.50,
-      "oil_filter": 80.00,
-      "gas_filter": 45.75,
-      "oil_change": 300.00,
-      "price": 50.25,
-      "full_total": 596.50
+      "id": 2,
+      "car_id": 2,
+      "date": "2025-10-15",
+      "air_filter": "0.00",
+      "oil_filter": "0.00",
+      "gas_filter": "30.00",
+      "oil_change": "250.00",
+      "price": "25.00",
+      "spare_part_type": "Gas Filter + Oil"
     }
   ],
-  "yearly_totals": {
+  "monthly_totals": {
     "air_filter": 120.50,
     "oil_filter": 80.00,
-    "gas_filter": 45.75,
-    "oil_change": 300.00,
-    "price": 50.25,
-    "full_total": 596.50
+    "gas_filter": 75.75,
+    "oil_change": 550.00,
+    "price": 75.25,
+    "full_total": 901.50
+  },
+  "yearly_totals": {
+    "air_filter": 450.00,
+    "oil_filter": 320.00,
+    "gas_filter": 180.25,
+    "oil_change": 2400.00,
+    "price": 285.75,
+    "full_total": 3636.00
   }
 }
 ```
 
 **Notes:**
-- `monthly_totals`: Array of 12 objects (months 1-12) with totals for each month
-- `yearly_totals`: Sum of all money fields across the entire year
+- `entries`: All maintenance records for the specific month
+- `monthly_totals`: Sum of all money fields for that month only
+- `yearly_totals`: Sum of all money fields for the entire year (all 12 months)
 - `full_total`: Sum of all 5 money fields (air_filter + oil_filter + gas_filter + oil_change + price)
+- Much better performance than loading all monthly data at once
+- Perfect for comparing monthly vs yearly spending
 - All money fields are returned as decimal strings
 
 ---
@@ -463,7 +466,7 @@ curl -X PATCH http://localhost:8000/api/maintenance/by-date/ \
   -d '{"car_id":2,"date":"2025-10-06","price":65.00,"spare_part_type":"Updated: Oil Change Only"}'
 ```
 
-### Get yearly maintenance table:
+### Get monthly maintenance table:
 ```bash
-curl "http://localhost:8000/api/maintenance/year/?car_id=2&year=2025"
+curl "http://localhost:8000/api/maintenance/month/?car_id=2&year=2025&month=10"
 ```

@@ -151,29 +151,36 @@ def get_weekly_detail(request):
     return Response(WeeklyDetailSerializer(payload).data)
 
 
-# Yearly maintenance table endpoint
+# Monthly maintenance table endpoint
 @api_view(['GET'])
-def get_maintenance_year(request):
+def get_maintenance_month(request):
     """
-    GET /api/maintenance/year/?car_id=<id>&year=YYYY
-    Returns all maintenance entries for the car in that year, plus monthly totals and yearly totals.
+    GET /api/maintenance/month/?car_id=<id>&year=YYYY&month=MM
+    Returns all maintenance entries for the car in that specific month, plus monthly totals.
     Money fields: air_filter, oil_filter, gas_filter, oil_change, price
     full_total = sum of those totals.
     """
     car_id = request.query_params.get('car_id')
     year = request.query_params.get('year')
-    if not car_id or not year:
-        return Response({'detail': 'car_id and year are required query params'}, status=status.HTTP_400_BAD_REQUEST)
+    month = request.query_params.get('month')
+    if not car_id or not year or not month:
+        return Response({'detail': 'car_id, year and month are required query params'}, status=status.HTTP_400_BAD_REQUEST)
     try:
         car = Car.objects.get(pk=int(car_id))
         y = int(year)
+        m = int(month)
+        if not (1 <= m <= 12):
+            raise ValueError('Month must be 1-12')
     except Exception:
-        return Response({'detail': 'Invalid car_id/year'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': 'Invalid car_id/year/month'}, status=status.HTTP_400_BAD_REQUEST)
 
     from .models import MaintenanceEntry
-    entries = MaintenanceEntry.objects.filter(car=car, date__year=y).order_by('date', 'id')
+    entries = MaintenanceEntry.objects.filter(car=car, date__year=y, date__month=m).order_by('date', 'id')
+    
+    # Get all entries for the year (for yearly totals)
+    yearly_entries = MaintenanceEntry.objects.filter(car=car, date__year=y)
 
-    # Yearly totals
+    # Totals calculation function
     def sum_qs(qs):
         agg = qs.aggregate(
             air_filter=Sum('air_filter'), oil_filter=Sum('oil_filter'), gas_filter=Sum('gas_filter'),
@@ -185,17 +192,8 @@ def get_maintenance_year(request):
         agg['full_total'] = (agg['air_filter'] or 0) + (agg['oil_filter'] or 0) + (agg['gas_filter'] or 0) + (agg['oil_change'] or 0) + (agg['price'] or 0)
         return agg
 
-    yearly_totals = sum_qs(entries)
-
-    # Monthly totals 1..12
-    monthly = []
-    for m in range(1, 13):
-        month_qs = entries.filter(date__month=m)
-        totals = sum_qs(month_qs)
-        monthly.append({
-            'month': m,
-            **totals
-        })
+    monthly_totals = sum_qs(entries)
+    yearly_totals = sum_qs(yearly_entries)
 
     # Serialize entries
     entries_data = MaintenanceEntrySerializer(entries, many=True).data
@@ -203,8 +201,9 @@ def get_maintenance_year(request):
     payload = {
         'car_id': car.id,
         'year': y,
+        'month': m,
         'entries': entries_data,
-        'monthly_totals': monthly,
+        'monthly_totals': monthly_totals,
         'yearly_totals': yearly_totals,
     }
     return Response(payload)

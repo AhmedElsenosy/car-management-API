@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Car, DailyEntry, WeeklySummary, week_start_from_date
+from .models import Car, DailyEntry, WeeklySummary, week_start_from_date, MaintenanceEntry
 from decimal import Decimal
 from datetime import timedelta
 
@@ -18,8 +18,8 @@ class DailyEntrySerializer(serializers.ModelSerializer):
         model = DailyEntry
         fields = [
             'id', 'car_id', 'inspection_date', 'day_name', 'driver_name', 'area',
-            'freight', 'gas', 'oil', 'card', 'fines', 'tips', 'maintenance',
-            'spare_parts', 'tires', 'balance', 'washing', 'week_start'
+            'freight', 'default_freight', 'gas', 'oil', 'card', 'fines', 'tips', 'maintenance',
+            'spare_parts', 'tires', 'balance', 'washing', 'without', 'week_start'
         ]
         read_only_fields = ['id', 'week_start']
 
@@ -37,12 +37,13 @@ class DailyEntrySerializer(serializers.ModelSerializer):
 class WeeklyCreateSerializer(serializers.ModelSerializer):
     car_id = serializers.PrimaryKeyRelatedField(queryset=Car.objects.all(), source='car', write_only=True)
     week_ref_date = serializers.DateField(write_only=True, required=True, help_text="Any date inside the week (Saturday-Friday)")
+    description = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = WeeklySummary
         fields = [
             'id', 'car_id', 'week_ref_date', 'week_start', 'week_end',
-            'odometer_start', 'odometer_end', 'driver_salary', 'custody',
+            'odometer_start', 'odometer_end', 'driver_salary', 'custody', 'description',
             'net_expenses', 'net_revenue'
         ]
         read_only_fields = ['id', 'week_start', 'week_end', 'net_expenses', 'net_revenue']
@@ -67,7 +68,44 @@ class WeeklyDetailSerializer(serializers.Serializer):
     gas_per_km = serializers.DecimalField(max_digits=12, decimal_places=4)
     driver_salary = serializers.DecimalField(max_digits=12, decimal_places=2)
     custody = serializers.DecimalField(max_digits=12, decimal_places=2)
+    description = serializers.CharField()
     net_expenses = serializers.DecimalField(max_digits=12, decimal_places=2)
     net_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    default_net_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     totals = serializers.DictField()
     daily_entries = DailyEntrySerializer(many=True)
+
+
+class MonthlyDetailSerializer(serializers.Serializer):
+    """Monthly summary for a car"""
+    car_id = serializers.IntegerField()
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
+    period_start = serializers.DateField()
+    period_end = serializers.DateField()
+
+    odometer_start = serializers.IntegerField()
+    odometer_end = serializers.IntegerField()
+    distance_total = serializers.IntegerField()
+    gas_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    gas_per_km = serializers.DecimalField(max_digits=12, decimal_places=4)
+
+    driver_salary_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    custody_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    net_expenses_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    net_revenue_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    default_net_revenue_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+    weeks = serializers.ListField(child=serializers.DictField())
+
+
+class MaintenanceEntrySerializer(serializers.ModelSerializer):
+    car_id = serializers.PrimaryKeyRelatedField(queryset=Car.objects.all(), source='car', write_only=True)
+
+    class Meta:
+        model = MaintenanceEntry
+        fields = [
+            'id', 'car_id', 'date', 'air_filter', 'oil_filter', 'gas_filter',
+            'oil_change', 'price', 'spare_part_type'
+        ]
+        read_only_fields = ['id']

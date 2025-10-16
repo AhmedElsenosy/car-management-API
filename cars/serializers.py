@@ -13,6 +13,8 @@ class CarSerializer(serializers.ModelSerializer):
 
 class DailyEntrySerializer(serializers.ModelSerializer):
     car_id = serializers.PrimaryKeyRelatedField(queryset=Car.objects.all(), source='car', write_only=True)
+    # Make driver_name optional for create_daily_entry endpoint
+    driver_name = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = DailyEntry

@@ -95,6 +95,7 @@ def create_weekly_summary(request):
             'odometer_end': serializer.validated_data['odometer_end'],
             'driver_salary': serializer.validated_data.get('driver_salary') or 0,
             'custody': serializer.validated_data.get('custody') or 0,
+            'perished': serializer.validated_data.get('perished') or 0,
             'description': serializer.validated_data.get('description', ''),
         }
         obj, _created = WeeklySummary.objects.update_or_create(
@@ -140,6 +141,7 @@ def get_weekly_detail(request):
             odometer_end=0,
             driver_salary=0,
             custody=0,
+            perished=0,
             description='',
         )
     else:
@@ -252,9 +254,18 @@ def get_monthly_detail(request):
     # Daily entries in this calendar month
     daily_qs = DailyEntry.objects.filter(car=car, inspection_date__gte=period_start, inspection_date__lte=period_end)
 
-    # Aggregates from daily
-    aggs = daily_qs.aggregate(gas=Sum('gas'))
-    gas_total = Decimal(str(aggs.get('gas') or 0))
+    # Aggregates from daily - get all expense fields
+    daily_aggs = daily_qs.aggregate(
+        freight=Sum('freight'), default_freight=Sum('default_freight'),
+        gas=Sum('gas'), oil=Sum('oil'), card=Sum('card'), fines=Sum('fines'), tips=Sum('tips'),
+        maintenance=Sum('maintenance'), spare_parts=Sum('spare_parts'), tires=Sum('tires'),
+        balance=Sum('balance'), washing=Sum('washing'), without=Sum('without')
+    )
+    # Normalize all to Decimal
+    def daily_dec(k):
+        return Decimal(str(daily_aggs.get(k) or 0))
+    
+    gas_total = daily_dec('gas')
 
     # Distance and odometers from weekly
     distance_total = 0
@@ -262,9 +273,12 @@ def get_monthly_detail(request):
     odo_end = 0
     driver_salary_total = Decimal('0')
     custody_total = Decimal('0')
+    perished_total = Decimal('0')
     net_expenses_total = Decimal('0')
     net_revenue_total = Decimal('0')
     default_net_revenue_total = Decimal('0')
+    net_driver_total = Decimal('0')
+    net_car_total = Decimal('0')
 
     weeks_list = []
     for idx, wk in enumerate(week_qs):
@@ -291,14 +305,24 @@ def get_monthly_detail(request):
         weekly_freight = decv('freight')
         weekly_default_freight = decv('default_freight')
         weekly_custody = Decimal(str(wk.custody or 0))
+        weekly_perished = Decimal(str(wk.perished or 0))
+        weekly_driver_salary = Decimal(str(wk.driver_salary or 0))
         weekly_net = weekly_freight + weekly_custody - weekly_expenses
         weekly_default_net = weekly_default_freight + weekly_custody - weekly_expenses
+        
+        # Calculate net_driver and net_car for this week
+        daily_expenses_only = weekly_expenses - weekly_driver_salary
+        weekly_net_driver = weekly_freight + weekly_custody - daily_expenses_only
+        weekly_net_car = weekly_freight + weekly_default_freight + weekly_custody - (daily_expenses_only + weekly_driver_salary + weekly_perished)
 
-        driver_salary_total += Decimal(str(wk.driver_salary or 0))
+        driver_salary_total += weekly_driver_salary
         custody_total += weekly_custody
+        perished_total += weekly_perished
         net_expenses_total += weekly_expenses
         net_revenue_total += weekly_net
         default_net_revenue_total += weekly_default_net
+        net_driver_total += weekly_net_driver
+        net_car_total += weekly_net_car
 
         weeks_list.append({
             'week_start': wk.week_start,
@@ -308,15 +332,35 @@ def get_monthly_detail(request):
             'distance': dist,
             'driver_salary': wk.driver_salary,
             'custody': wk.custody,
+            'perished': wk.perished,
             'net_expenses': weekly_expenses,
             'net_revenue': weekly_net,
             'default_net_revenue': weekly_default_net,
+            'net_driver': weekly_net_driver,
+            'net_car': weekly_net_car,
         })
 
     gas_per_km = Decimal('0')
     if distance_total > 0:
         gas_per_km = (gas_total / Decimal(distance_total)).quantize(Decimal('0.0001'))
 
+    # Build daily totals dict from aggregated daily entries
+    daily_totals = {
+        'freight': daily_dec('freight'),
+        'default_freight': daily_dec('default_freight'),
+        'gas': daily_dec('gas'),
+        'oil': daily_dec('oil'),
+        'card': daily_dec('card'),
+        'fines': daily_dec('fines'),
+        'tips': daily_dec('tips'),
+        'maintenance': daily_dec('maintenance'),
+        'spare_parts': daily_dec('spare_parts'),
+        'tires': daily_dec('tires'),
+        'balance': daily_dec('balance'),
+        'washing': daily_dec('washing'),
+        'without': daily_dec('without'),
+    }
+    
     payload = {
         'car_id': car.id,
         'year': y,
@@ -330,9 +374,13 @@ def get_monthly_detail(request):
         'gas_per_km': gas_per_km,
         'driver_salary_total': driver_salary_total,
         'custody_total': custody_total,
+        'perished_total': perished_total,
         'net_expenses_total': net_expenses_total,
         'net_revenue_total': net_revenue_total,
         'default_net_revenue_total': default_net_revenue_total,
+        'net_driver_total': net_driver_total,
+        'net_car_total': net_car_total,
+        'daily_totals': daily_totals,
         'weeks': weeks_list,
     }
     return Response(MonthlyDetailSerializer(payload).data)
@@ -436,7 +484,7 @@ def update_weekly_by_date(request):
         return Response({'detail': 'Weekly summary not found for this car and week.'}, status=status.HTTP_404_NOT_FOUND)
 
     # Update allowed fields if provided
-    for field in ['odometer_start', 'odometer_end', 'driver_salary', 'custody', 'description']:
+    for field in ['odometer_start', 'odometer_end', 'driver_salary', 'custody', 'perished', 'description']:
         if field in request.data:
             setattr(summary, field, request.data.get(field))
 
@@ -483,9 +531,21 @@ def _build_weekly_payload(summary: WeeklySummary):
     total_freight = dec(aggs.get('freight'))
     default_total_freight = dec(aggs.get('default_freight'))
     custody_dec = dec(summary.custody)
+    perished_dec = dec(summary.perished)
+    driver_salary_dec = dec(summary.driver_salary)
+    
     net_expenses = expenses
     net_revenue = total_freight + custody_dec - expenses
     default_net_revenue = default_total_freight + custody_dec - expenses
+    
+    # Daily expenses only (without driver_salary)
+    daily_expenses_only = expenses - driver_salary_dec
+    
+    # net_driver = (freight + custody) - daily_expenses_only (NO driver_salary)
+    net_driver = total_freight + custody_dec - daily_expenses_only
+    
+    # net_car = (freight + default_freight + custody) - (daily_expenses_only + driver_salary + perished)
+    net_car = total_freight + default_total_freight + custody_dec - (daily_expenses_only + driver_salary_dec + perished_dec)
 
     return {
         'car_id': summary.car.id,
@@ -496,11 +556,14 @@ def _build_weekly_payload(summary: WeeklySummary):
         'distance': distance,
         'gas_per_km': gas_per_km,
         'driver_salary': summary.driver_salary,
-'custody': summary.custody,
+        'custody': summary.custody,
+        'perished': summary.perished,
         'description': summary.description,
         'net_expenses': net_expenses,
-'net_revenue': net_revenue,
+        'net_revenue': net_revenue,
         'default_net_revenue': default_net_revenue,
+        'net_driver': net_driver,
+        'net_car': net_car,
         'totals': aggs,
         'daily_entries': DailyEntrySerializer(entries, many=True).data,
     }

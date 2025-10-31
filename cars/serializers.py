@@ -45,10 +45,10 @@ class WeeklyCreateSerializer(serializers.ModelSerializer):
         model = WeeklySummary
         fields = [
             'id', 'car_id', 'week_ref_date', 'week_start', 'week_end',
-            'odometer_start', 'odometer_end', 'driver_salary', 'custody', 'description',
-            'net_expenses', 'net_revenue'
+            'odometer_start', 'odometer_end', 'driver_salary', 'custody', 'perished', 'description',
+            'net_expenses', 'net_revenue', 'net_driver', 'net_car'
         ]
-        read_only_fields = ['id', 'week_start', 'week_end', 'net_expenses', 'net_revenue']
+        read_only_fields = ['id', 'week_start', 'week_end', 'net_expenses', 'net_revenue', 'net_driver', 'net_car']
 
     def validate(self, attrs):
         # Compute week_start/week_end from week_ref_date
@@ -70,10 +70,13 @@ class WeeklyDetailSerializer(serializers.Serializer):
     gas_per_km = serializers.DecimalField(max_digits=12, decimal_places=4)
     driver_salary = serializers.DecimalField(max_digits=12, decimal_places=2)
     custody = serializers.DecimalField(max_digits=12, decimal_places=2)
+    perished = serializers.DecimalField(max_digits=12, decimal_places=2)
     description = serializers.CharField()
     net_expenses = serializers.DecimalField(max_digits=12, decimal_places=2)
     net_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     default_net_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    net_driver = serializers.DecimalField(max_digits=12, decimal_places=2)
+    net_car = serializers.DecimalField(max_digits=12, decimal_places=2)
     totals = serializers.DictField()
     daily_entries = DailyEntrySerializer(many=True)
 
@@ -94,10 +97,14 @@ class MonthlyDetailSerializer(serializers.Serializer):
 
     driver_salary_total = serializers.DecimalField(max_digits=14, decimal_places=2)
     custody_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    perished_total = serializers.DecimalField(max_digits=14, decimal_places=2)
     net_expenses_total = serializers.DecimalField(max_digits=14, decimal_places=2)
     net_revenue_total = serializers.DecimalField(max_digits=14, decimal_places=2)
     default_net_revenue_total = serializers.DecimalField(max_digits=14, decimal_places=2)
-
+    net_driver_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    net_car_total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    
+    daily_totals = serializers.DictField()
     weeks = serializers.ListField(child=serializers.DictField())
 
 

@@ -76,11 +76,14 @@ class WeeklySummary(models.Model):
 
     driver_salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     custody = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    perished = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Perished goods value entered once per week")
     description = models.TextField(blank=True, default='')
 
     net_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     net_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     default_net_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    net_driver = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Net for driver: (freight + custody) - net_expenses")
+    net_car = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Net for car: (freight + default_freight + custody) - (net_expenses + perished + driver_salary)")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -116,10 +119,23 @@ class WeeklySummary(models.Model):
         expenses = expenses + driver_salary
         total_freight = d('freight')
         default_total_freight = d('default_freight')
+        custody_val = self.custody or Decimal('0.00')
+        perished_val = self.perished or Decimal('0.00')
+        
         self.net_expenses = expenses
-        self.net_revenue = total_freight + (self.custody or Decimal('0.00')) - expenses
+        self.net_revenue = total_freight + custody_val - expenses
         # default_net_revenue uses default_freight totals instead of freight
-        self.default_net_revenue = default_total_freight + (self.custody or Decimal('0.00')) - expenses
+        self.default_net_revenue = default_total_freight + custody_val - expenses
+        
+        # Daily expenses only (without driver_salary)
+        daily_expenses_only = expenses - driver_salary
+        
+        # net_driver = (freight + custody) - daily_expenses_only (NO driver_salary)
+        self.net_driver = total_freight + custody_val - daily_expenses_only
+        
+        # net_car = (freight + default_freight + custody) - (daily_expenses_only + driver_salary + perished)
+        self.net_car = total_freight + default_total_freight + custody_val - (daily_expenses_only + driver_salary + perished_val)
+        
         super().save(*args, **kwargs)
 
 

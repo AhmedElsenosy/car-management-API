@@ -313,7 +313,7 @@ def get_monthly_detail(request):
         # Calculate net_driver and net_car for this week
         daily_expenses_only = weekly_expenses - weekly_driver_salary
         weekly_net_driver = weekly_freight + weekly_custody - daily_expenses_only
-        weekly_net_car = weekly_freight + weekly_default_freight + weekly_custody - (daily_expenses_only + weekly_driver_salary + weekly_perished)
+        weekly_net_car = weekly_freight + weekly_default_freight - (daily_expenses_only + weekly_driver_salary + weekly_perished)
 
         driver_salary_total += weekly_driver_salary
         custody_total += weekly_custody
@@ -544,8 +544,8 @@ def _build_weekly_payload(summary: WeeklySummary):
     # net_driver = (freight + custody) - daily_expenses_only (NO driver_salary)
     net_driver = total_freight + custody_dec - daily_expenses_only
     
-    # net_car = (freight + default_freight + custody) - (daily_expenses_only + driver_salary + perished)
-    net_car = total_freight + default_total_freight + custody_dec - (daily_expenses_only + driver_salary_dec + perished_dec)
+    # net_car = (freight + default_freight) - (daily_expenses_only + driver_salary + perished)
+    net_car = total_freight + default_total_freight - (daily_expenses_only + driver_salary_dec + perished_dec)
 
     return {
         'car_id': summary.car.id,

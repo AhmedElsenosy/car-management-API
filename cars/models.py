@@ -133,8 +133,8 @@ class WeeklySummary(models.Model):
         # net_driver = (freight + custody) - daily_expenses_only (NO driver_salary)
         self.net_driver = total_freight + custody_val - daily_expenses_only
         
-        # net_car = (freight + default_freight + custody) - (daily_expenses_only + driver_salary + perished)
-        self.net_car = total_freight + default_total_freight + custody_val - (daily_expenses_only + driver_salary + perished_val)
+        # net_car = (freight + default_freight) - (daily_expenses_only + driver_salary + perished)
+        self.net_car = total_freight + default_total_freight - (daily_expenses_only + driver_salary + perished_val)
         
         super().save(*args, **kwargs)
 

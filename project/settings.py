@@ -26,7 +26,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-z6r6%#f8g70w2g2mqdn$u
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
 
 
 # Application definition
@@ -158,3 +158,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:300\d+$",
     r"^http://127\.0\.0\.1:300\d+$",
 ]
+
+# Allow CORS from all origins (useful for local network access)
+# Set CORS_ALLOW_ALL=True in environment to enable
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL', 'False') == 'True'

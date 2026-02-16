@@ -40,6 +40,7 @@ class DailyEntry(models.Model):
     washing = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     # New generic daily expense
     without = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Additional unspecified expense to include in totals")
+    driver_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Expenses related to the driver")
 
     week_start = models.DateField(help_text="Saturday date for the week this entry belongs to")
 
@@ -63,6 +64,80 @@ class DailyEntry(models.Model):
 
     def __str__(self):
         return f"DailyEntry car={self.car_id} date={self.inspection_date}"
+
+
+# Signal to automatically sync maintenance data to MaintenanceEntry
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender='cars.DailyEntry')
+def sync_maintenance_entry(sender, instance, created, **kwargs):
+    """
+    Automatically create/update/delete MaintenanceEntry when DailyEntry is saved.
+    - Copies maintenance amount to price
+    - Copies WeeklySummary description to spare_part_type
+    - Deletes MaintenanceEntry if maintenance becomes 0
+    """
+    # If maintenance is 0 or negative, delete any existing MaintenanceEntry
+    if instance.maintenance <= Decimal('0.00'):
+        MaintenanceEntry.objects.filter(
+            car=instance.car,
+            date=instance.inspection_date
+        ).delete()
+        return
+    
+    # If maintenance > 0, create or update MaintenanceEntry
+    maintenance_entry, entry_created = MaintenanceEntry.objects.get_or_create(
+        car=instance.car,
+        date=instance.inspection_date,
+        defaults={'price': instance.maintenance}
+    )
+    
+    # Update price
+    maintenance_entry.price = instance.maintenance
+    
+    # Get description from WeeklySummary for this week
+    spare_part_description = ''
+    try:
+        weekly_summary = WeeklySummary.objects.get(
+            car=instance.car,
+            week_start=instance.week_start
+        )
+        if weekly_summary.description:
+            spare_part_description = weekly_summary.description
+    except WeeklySummary.DoesNotExist:
+        # No WeeklySummary found, leave spare_part_type empty
+        pass
+    
+    maintenance_entry.spare_part_type = spare_part_description
+    maintenance_entry.save()
+
+
+@receiver(post_save, sender='cars.WeeklySummary')
+def update_maintenance_descriptions(sender, instance, created, **kwargs):
+    """
+    When WeeklySummary is created or updated, update all MaintenanceEntry records
+    for that week with the description.
+    """
+    # Get all DailyEntry records for this car/week that have maintenance > 0
+    daily_entries = DailyEntry.objects.filter(
+        car=instance.car,
+        week_start=instance.week_start,
+        maintenance__gt=Decimal('0.00')
+    )
+    
+    # Update the spare_part_type for each corresponding MaintenanceEntry
+    for daily_entry in daily_entries:
+        try:
+            maintenance_entry = MaintenanceEntry.objects.get(
+                car=daily_entry.car,
+                date=daily_entry.inspection_date
+            )
+            maintenance_entry.spare_part_type = instance.description or ''
+            maintenance_entry.save()
+        except MaintenanceEntry.DoesNotExist:
+            # Shouldn't happen, but skip if no MaintenanceEntry exists
+            pass
 
 
 class WeeklySummary(models.Model):
@@ -106,13 +181,13 @@ class WeeklySummary(models.Model):
             freight=Sum('freight'), default_freight=Sum('default_freight'), gas=Sum('gas'), oil=Sum('oil'), card=Sum('card'),
             fines=Sum('fines'), tips=Sum('tips'), maintenance=Sum('maintenance'),
             spare_parts=Sum('spare_parts'), tires=Sum('tires'), balance=Sum('balance'),
-            washing=Sum('washing'), without=Sum('without')
+            washing=Sum('washing'), without=Sum('without'), driver_expenses=Sum('driver_expenses')
         )
         def d(x):
             return totals.get(x) or Decimal('0.00')
         expenses = (
             d('gas') + d('oil') + d('card') + d('fines') + d('tips') +
-            d('maintenance') + d('spare_parts') + d('tires') + d('balance') + d('washing') + d('without')
+            d('maintenance') + d('spare_parts') + d('tires') + d('balance') + d('washing') + d('without') + d('driver_expenses')
         )
         # Include driver salary in weekly expenses
         driver_salary = self.driver_salary or Decimal('0.00')

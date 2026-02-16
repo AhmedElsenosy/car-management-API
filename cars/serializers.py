@@ -21,7 +21,7 @@ class DailyEntrySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'car_id', 'inspection_date', 'day_name', 'driver_name', 'area',
             'freight', 'default_freight', 'gas', 'oil', 'card', 'fines', 'tips', 'maintenance',
-            'spare_parts', 'tires', 'balance', 'washing', 'without', 'week_start'
+            'spare_parts', 'tires', 'balance', 'washing', 'without', 'driver_expenses', 'week_start'
         ]
         read_only_fields = ['id', 'week_start']
 

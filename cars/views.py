@@ -259,7 +259,8 @@ def get_monthly_detail(request):
         freight=Sum('freight'), default_freight=Sum('default_freight'),
         gas=Sum('gas'), oil=Sum('oil'), card=Sum('card'), fines=Sum('fines'), tips=Sum('tips'),
         maintenance=Sum('maintenance'), spare_parts=Sum('spare_parts'), tires=Sum('tires'),
-        balance=Sum('balance'), washing=Sum('washing'), without=Sum('without')
+        balance=Sum('balance'), washing=Sum('washing'), without=Sum('without'),
+        driver_expenses=Sum('driver_expenses')
     )
     # Normalize all to Decimal
     def daily_dec(k):
@@ -294,13 +295,14 @@ def get_monthly_detail(request):
             freight=Sum('freight'), default_freight=Sum('default_freight'),
             gas=Sum('gas'), oil=Sum('oil'), card=Sum('card'), fines=Sum('fines'), tips=Sum('tips'),
             maintenance=Sum('maintenance'), spare_parts=Sum('spare_parts'), tires=Sum('tires'),
-            balance=Sum('balance'), washing=Sum('washing'), without=Sum('without')
+            balance=Sum('balance'), washing=Sum('washing'), without=Sum('without'),
+            driver_expenses=Sum('driver_expenses')
         )
         def decv(k):
             return Decimal(str(daggs.get(k) or 0))
         weekly_expenses = (
             decv('gas') + decv('oil') + decv('card') + decv('fines') + decv('tips') +
-            decv('maintenance') + decv('spare_parts') + decv('tires') + decv('balance') + decv('washing') + decv('without')
+            decv('maintenance') + decv('spare_parts') + decv('tires') + decv('balance') + decv('washing') + decv('without') + decv('driver_expenses')
         ) + Decimal(str(wk.driver_salary or 0))
         weekly_freight = decv('freight')
         weekly_default_freight = decv('default_freight')
@@ -359,6 +361,7 @@ def get_monthly_detail(request):
         'balance': daily_dec('balance'),
         'washing': daily_dec('washing'),
         'without': daily_dec('without'),
+        'driver_expenses': daily_dec('driver_expenses'),
     }
     
     payload = {
@@ -505,7 +508,7 @@ def _build_weekly_payload(summary: WeeklySummary):
         freight=Sum('freight'), default_freight=Sum('default_freight'), gas=Sum('gas'), oil=Sum('oil'), card=Sum('card'),
         fines=Sum('fines'), tips=Sum('tips'), maintenance=Sum('maintenance'),
         spare_parts=Sum('spare_parts'), tires=Sum('tires'), balance=Sum('balance'),
-        washing=Sum('washing'), without=Sum('without')
+        washing=Sum('washing'), without=Sum('without'), driver_expenses=Sum('driver_expenses')
     )
     for k in list(aggs.keys()):
         aggs[k] = aggs[k] or 0
@@ -526,7 +529,7 @@ def _build_weekly_payload(summary: WeeklySummary):
     expenses = (
         dec(aggs.get('gas')) + dec(aggs.get('oil')) + dec(aggs.get('card')) + dec(aggs.get('fines')) +
         dec(aggs.get('tips')) + dec(aggs.get('maintenance')) + dec(aggs.get('spare_parts')) +
-        dec(aggs.get('tires')) + dec(aggs.get('balance')) + dec(aggs.get('washing')) + dec(aggs.get('without'))
+        dec(aggs.get('tires')) + dec(aggs.get('balance')) + dec(aggs.get('washing')) + dec(aggs.get('without')) + dec(aggs.get('driver_expenses'))
     ) + dec(summary.driver_salary)
     total_freight = dec(aggs.get('freight'))
     default_total_freight = dec(aggs.get('default_freight'))
